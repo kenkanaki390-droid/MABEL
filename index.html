@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MABEL 🎀</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#fff3f7;color:#573b4c;font-family:Georgia,serif}
+header{background:#fffafd;padding:20px 7%;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;border-bottom:1px solid #f4dce6}
+.logo{color:#d98eaf;font-size:32px;letter-spacing:5px;font-weight:bold}
+header span{font-size:11px;color:#b58ba2}
+main{padding:30px 7%}
+.hero{padding:45px 25px;border-radius:24px;background:linear-gradient(135deg,#f9dce9,#f2dff7,#fff0f5);margin-bottom:30px}
+.hero h1{font-size:38px;color:#bb7297}
+.hero p{color:#805c75}
+button,input{border:1px solid #edc5d7;border-radius:12px;padding:12px 15px;background:white;color:#87536e;font-family:inherit}
+button{cursor:pointer;background:#f8dce8}
+button:hover{background:#edbfd4}
+input{width:100%;margin:15px 0;padding:15px}
+h2{color:#c27b9e}
+.filters{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:18px}
+.card{background:#fffafd;border:1px solid #f1d8e4;border-radius:16px;overflow:hidden;cursor:pointer;box-shadow:0 5px 18px #dcaac21c}
+.card img{width:100%;height:220px;object-fit:cover}
+.card h3{font-size:14px;padding:0 10px}
+.card p{padding:0 10px;font-size:12px;color:#a17c91}
+.card button{margin:8px}
+#message{color:#aa7c96;padding:15px 0}
+footer{text-align:center;padding:30px;color:#b58ba2}
+</style>
+</head>
+<body>
+<header>
+<div><div class="logo">MABEL 🎀</div><span>YOUR PERSONAL MANGA UNIVERSE</span></div>
+<button onclick="showFavourites()">♡ Favourites</button>
+</header>
+<main>
+<section class="hero">
+<h1>Welcome to MABEL.</h1>
+<p>A little world filled with endless stories.</p>
+<p>Discover your next favourite manga & manhwa ♡</p>
+</section>
+<h2>Discover your next obsession ✨</h2>
+<input id="search" placeholder="Search manga or manhwa..."/>
+<div class="filters">
+<button onclick="loadManga('POPULARITY_DESC')">Popular</button>
+<button onclick="loadManga('SCORE_DESC')">Top rated</button>
+<button onclick="loadManga('TRENDING_DESC')">Trending</button>
+<button onclick="showFavourites()">My collection ♡</button>
+</div>
+<h2 id="heading">Popular stories</h2>
+<div id="message">Loading your library... 🎀</div>
+<div class="grid" id="library"></div>
+<div class="filters">
+<button onclick="nextPage(-1)">Previous</button>
+<button onclick="nextPage(1)">Next page →</button>
+</div>
+</main>
+<footer>MABEL 🎀<br><br>Your personal story collection ♡</footer>
+<script>
+const API="https://graphql.anilist.co";
+let page=1;
+let currentSort="POPULARITY_DESC";
+let currentSearch="";
+let favourites=JSON.parse(localStorage.getItem("mabel-favourites")||"[]");
+let showingFavourites=false;
+
+const query=`
+query ($page:Int,$search:String,$sort:[MediaSort]){
+Page(page:$page,perPage:20){
+media(type:MANGA,isAdult:false,search:$search,sort:$sort){
+id
+title{english romaji}
+coverImage{large}
+status
+countryOfOrigin
+siteUrl
+}
+}
+}`;
+
+async function loadManga(sort=currentSort){
+currentSort=sort;
+currentSearch=document.getElementById("search").value.trim();
+showingFavourites=false;
+page=1;
+document.getElementById("heading").textContent=currentSearch?"Search results ♡":"Discover stories ✨";
+await fetchManga();
+}
+
+async function fetchManga(){
+const message=document.getElementById("message");
+const library=document.getElementById("library");
+message.textContent="Finding beautiful stories... 🎀";
+library.innerHTML="";
+try{
+const response=await fetch(API,{
+method:"POST",
+headers:{"Content-Type":"application/json","Accept":"application/json"},
+body:JSON.stringify({query,variables:{page,search:currentSearch||null,sort:[currentSort]}})
+});
+if(!response.ok)throw new Error();
+const result=await response.json();
+result.data.Page.media.forEach(addCard);
+message.textContent=result.data.Page.media.length?"":"No stories found. Try another title ♡";
+}catch{
+message.textContent="Couldn't load stories. Check your internet and try again.";
+}
+}
+
+function addCard(item){
+const card=document.createElement("div");
+card.className="card";
+const title=item.title.english||item.title.romaji;
+const img=document.createElement("img");
+img.src=item.coverImage.large;
+img.alt=title;
+img.loading="lazy";
+const heading=document.createElement("h3");
+heading.textContent=title;
+const details=document.createElement("p");
+details.textContent=`${item.countryOfOrigin||"Unknown"} • ${item.status||"Unknown"}`;
+const favourite=document.createElement("button");
+favourite.textContent=favourites.includes(item.id)?"♥ Saved":"♡ Save";
+favourite.onclick=event=>{
+event.stopPropagation();
+toggleFavourite(item.id);
+favourite.textContent=favourites.includes(item.id)?"♥ Saved":"♡ Save";
+};
+card.append(img,heading,details,favourite);
+card.onclick=()=>window.open(item.siteUrl,"_blank","noopener");
+document.getElementById("library").appendChild(card);
+}
+
+function toggleFavourite(id){
+favourites=favourites.includes(id)?favourites.filter(x=>x!==id):[...favourites,id];
+localStorage.setItem("mabel-favourites",JSON.stringify(favourites));
+}
+
+async function showFavourites(){
+showingFavourites=true;
+document.getElementById("heading").textContent="My favourites ♡";
+document.getElementById("library").innerHTML="";
+if(!favourites.length){
+document.getElementById("message").textContent="Your collection is waiting for its first story! 🎀";
+return;
+}
+document.getElementById("message").textContent="Loading...";
+const ids=favourites.join(",");
+const savedQuery=`query{Page{media(id_in:[${ids}],type:MANGA,isAdult:false){id title{english romaji} coverImage{large} status countryOfOrigin siteUrl}}}`;
+try{
+const response=await fetch(API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({query:savedQuery})});
+const data=await response.json();
+document.getElementById("message").textContent="";
+data.data.Page.media.forEach(addCard);
+}catch{
+document.getElementById("message").textContent="Couldn't load favourites.";
+}
+}
+
+function nextPage(direction){
+if(showingFavourites)return;
+page=Math.max(1,page+direction);
+fetchManga();
+}
+document.getElementById("search").addEventListener("keydown",event=>{
+if(event.key==="Enter")loadManga();
+});
+loadManga();
+</script>
+</body>
+</html>
